@@ -3,33 +3,36 @@
 # Add steps that build, run tests, deploy, and more:
 # https://aka.ms/yaml
 trigger:
-  branches:
-    include:
-    - main
-  paths:
-    exclude:
-    - build-pipeline.yml
-    - release-pipeline.yml
+- none
+
+resources:
+  pipelines:
+  - pipeline: ci-pipeline # Name of the pipeline resource
+    source: CI # Name of the triggering pipeline
+    trigger:
+      branches:
+      - main
 
 variables:
   vmImageName: 'ubuntu-latest'
 
 jobs:
-- job: Build
+- deployment: Deploy
+  displayName: Deploy
+  environment: dev
   pool:
     vmImage: $(vmImageName)
-  steps:
-  - script: |
-      echo 'compile application'
-    displayName: 'compile'
-  - script: |
-      echo 'do some unit test'
-    displayName: 'unit test'
-
-  - task: ArchiveFiles@2
-    inputs:
-      rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
-      includeRootFolder: false
-      archiveType: 'zip'
-      archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
-      replaceExistingArchive: true
+  strategy:
+    runOnce:
+      deploy:
+        steps:
+        - download: ci-pipeline
+          artifact: drop
+        - task: ExtractFiles@1
+          inputs:
+          archiveFilePatterns: '$(PIPELINE.WORKSPACE)/ci-pipeline/drop/$(resources.pipeline.ci-pipeline.runID).zip'
+          destinationFolder: '$(agent.builddirectory)'
+          cleanDestinationFolder: false
+        - script: |
+          cat $(agent.builddirectory)/README.md
+        displayName: cat
